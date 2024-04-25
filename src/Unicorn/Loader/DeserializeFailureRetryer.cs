@@ -1,9 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using Rainbow.Model;
+﻿using Rainbow.Model;
 using Rainbow.Storage.Sc.Deserialization;
 using Sitecore.Diagnostics;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Unicorn.Data;
 
 namespace Unicorn.Loader
@@ -62,32 +62,36 @@ namespace Unicorn.Loader
 					// clear the failures collection - we'll re-add any that fail again by evaluating originalFailures
 					_itemFailures.Clear();
 
-					foreach (var failure in originalItemFailures)
+					using (new UnicornOperationContext())
 					{
-						// retry loading a single item failure
-						var item = failure.Item;
-						if (item != null)
+						foreach (var failure in originalItemFailures)
 						{
-							try
+							// retry loading a single item failure
+							var item = failure.Item;
+							if (item != null)
 							{
-								retrySingleItemAction(item);
-							}
-							catch (Exception reason)
-							{
-								_itemFailures.Add(CreateFailure(failure.Item, reason));
+								try
+								{
+									retrySingleItemAction(item);
+								}
+								catch (Exception reason)
+								{
+									_itemFailures.Add(CreateFailure(failure.Item, reason));
+								}
+
+								continue;
 							}
 
-							continue;
+							// retry loading a reference failure (note the continues in the above ensure execution never arrives here for items)
+							retryTreeAction(failure.Item);
 						}
-
-						// retry loading a reference failure (note the continues in the above ensure execution never arrives here for items)
-						retryTreeAction(failure.Item);
 					}
 				} while (_itemFailures.Count > 0 && _itemFailures.Count < originalItemFailures.Count);
-					// continue retrying until all possible failures have been fixed
+				// continue retrying until all possible failures have been fixed
 			}
 
-			if(_treeFailures.Count > 0) {
+			if (_treeFailures.Count > 0)
+			{
 				List<Failure> originalTreeFailures;
 
 				do
@@ -100,16 +104,19 @@ namespace Unicorn.Loader
 					// clear the failures collection - we'll re-add any that fail again by evaluating originalFailures
 					_treeFailures.Clear();
 
-					foreach (var failure in originalTreeFailures)
+					using (new UnicornOperationContext())
 					{
-						try
+						foreach (var failure in originalTreeFailures)
 						{
-							// retry loading a tree failure
-							retryTreeAction(failure.Item);
-						}
-						catch (Exception reason)
-						{
-							_treeFailures.Add(CreateFailure(failure.Item, reason));
+							try
+							{
+								// retry loading a tree failure
+								retryTreeAction(failure.Item);
+							}
+							catch (Exception reason)
+							{
+								_treeFailures.Add(CreateFailure(failure.Item, reason));
+							}
 						}
 					}
 				}
